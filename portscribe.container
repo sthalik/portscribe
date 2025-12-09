@@ -1,0 +1,18 @@
+[Unit]
+Description=Podman portscribe container
+After=network-online.target
+
+[Container]
+Image=localhost/portscribe
+ContainerName=portscribe
+EnvironmentFile=/root/portscribe/.env
+Network=host
+
+User=6002
+Group=6002
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
