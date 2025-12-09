@@ -1,0 +1,21 @@
+[Unit]
+Description=Podman portscribe container
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=2
+
+[Container]
+Image=localhost/portscribe
+ContainerName=portscribe
+EnvironmentFile=/etc/containers/systemd/portscribe.env
+Network=host
+
+User=6002
+Group=6002
+
+[Service]
+Restart=on-failure
+RestartSec=120
+
+[Install]
+WantedBy=default.target

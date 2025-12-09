@@ -1,0 +1,13 @@
+[Unit]
+Description=Run portscribe every 5 hours
+After=network-online.target
+Wants=network-online.target
+
+[Timer]
+OnUnitInactiveSec=10h
+RandomizedDelaySec=1m
+OnBootSec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
