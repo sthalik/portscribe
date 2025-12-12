@@ -2,3 +2,4 @@ qbittorrent-api
 selenium
 dotenv
 webdriver-manager
+pyotp

@@ -9,6 +9,7 @@ import pickle
 import time  
 import getopt
 from dataclasses import dataclass
+import pyotp
 
 import qbittorrentapi
 os.environ['QBITTORRENTAPI_DO_NOT_VERIFY_WEBUI_CERTIFICATE'] = "1"
@@ -25,10 +26,16 @@ import dotenv
 dotenv.load_dotenv()
 ws_username = os.environ["ws_username"]
 ws_password = os.environ["ws_password"]
+ws_otp = os.environ["ws_otp"] if "ws-otp" in os.environ else None
 qbt_username = os.environ["qbt_username"]
 qbt_password = os.environ["qbt_password"]
 qbt_host = os.environ["qbt_host"]
 qbt_port = os.environ["qbt_port"]
+
+def get_otp():
+    if ws_otp is not None:
+        totp = pyotp.TOTP(ws_otp)
+        return totp.now()
 
 URL = 'https://windscribe.com/myaccount#portforwards'
 driver = None
@@ -109,12 +116,27 @@ def is_logged_in():
 
 def login():
     #nav('https://www.windscribe.com/login') 
-    nav(URL)
-    user = driver.find_element("css selector", '#username')
-    passwd = driver.find_element("css selector", '#pass')
+    nav(URL); wait_until_selector('.login-box #username')
+    user = driver.find_element("css selector", '.login-box #username')
+    passwd = driver.find_element("css selector", '.login-box #pass')
     user.send_keys(ws_username) 
     passwd.send_keys(ws_password)
     passwd.submit()
+    otp = get_otp()
+    if otp is not None:
+        try:
+            wait_until_selector('.login-box #code', secs=3)
+        except TimeoutError:
+            return
+        user = driver.find_element("css selector", '.login-box #username')
+        passwd = driver.find_element("css selector", '.login-box #pass')
+        code = driver.find_element('css selector', '.login-box #code')
+        user.clear()
+        passwd.clear()
+        user.send_keys(ws_username)
+        passwd.send_keys(ws_password)
+        code.send_keys(otp)
+        code.submit()
     
 def maybe_login():
     if is_logged_in():
