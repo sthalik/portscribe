@@ -6,7 +6,7 @@ import re
 import platform
 from pathlib import Path
 import pickle
-import time  
+import time
 import getopt
 from dataclasses import dataclass
 import pyotp
@@ -14,10 +14,11 @@ import pyotp
 import qbittorrentapi
 os.environ['QBITTORRENTAPI_DO_NOT_VERIFY_WEBUI_CERTIFICATE'] = "1"
 
-import selenium      
+import selenium
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -26,7 +27,7 @@ import dotenv
 dotenv.load_dotenv()
 ws_username = os.environ["ws_username"]
 ws_password = os.environ["ws_password"]
-ws_otp = os.environ["ws_otp"] if "ws-otp" in os.environ else None
+ws_otp = os.environ.get("ws_otp")
 qbt_username = os.environ["qbt_username"]
 qbt_password = os.environ["qbt_password"]
 qbt_host = os.environ["qbt_host"]
@@ -115,29 +116,45 @@ def is_logged_in():
         return False
 
 def login():
-    #nav('https://www.windscribe.com/login') 
-    nav(URL); wait_until_selector('.login-box #username')
+    nav('https://www.windscribe.com/login');
+    #nav(URL);
+    wait_until_selector('.login-box #username')
     user = driver.find_element("css selector", '.login-box #username')
     passwd = driver.find_element("css selector", '.login-box #pass')
     user.send_keys(ws_username) 
+    time.sleep(2)
     passwd.send_keys(ws_password)
-    passwd.submit()
+    time.sleep(2)
     otp = get_otp()
     if otp is not None:
+        verbose_print('Got OTP key')
+        driver.find_element("css selector", '.have_2fa').click()
         try:
             wait_until_selector('.login-box #code', secs=3)
         except TimeoutError:
             return
+        verbose_print('Send form')
         user = driver.find_element("css selector", '.login-box #username')
         passwd = driver.find_element("css selector", '.login-box #pass')
         code = driver.find_element('css selector', '.login-box #code')
-        user.clear()
+        button = driver.find_element("css selector", '#login_button')
+        time.sleep(2)
         passwd.clear()
-        user.send_keys(ws_username)
+        time.sleep(2)
         passwd.send_keys(ws_password)
+        time.sleep(2)
+        user.clear()
+        time.sleep(2)
+        user.send_keys(ws_username)
+        time.sleep(2)
         code.send_keys(otp)
-        code.submit()
-    
+        time.sleep(2)
+        code.send_keys(Keys.RETURN)
+    else:
+        button = driver.find_element("css selector", '#login_button')
+        time.sleep(2)
+        button.click()
+
 def maybe_login():
     if is_logged_in():
         verbose_print('Reusing the cookie')
