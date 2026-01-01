@@ -8,6 +8,7 @@ StartLimitBurst=2
 Image=localhost/portscribe
 ContainerName=portscribe
 EnvironmentFile=/etc/containers/systemd/portscribe.env
+Volume=state:/app/state
 Network=host
 
 User=6002
