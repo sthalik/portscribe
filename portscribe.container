@@ -7,16 +7,19 @@ StartLimitBurst=2
 [Container]
 Image=localhost/portscribe
 ContainerName=portscribe
-EnvironmentFile=/etc/containers/systemd/portscribe.env
-Volume=state:/app/state
-Network=host
+EnvironmentFile=/srv/portscribe/.env
+ReadOnly=yes
+Volume=/srv/portscribe/state:/app/state
+#Network=host
+Network=vpn-bridge.network
+#IP=10.55.0.3
 
 User=6002
 Group=6002
 
 [Service]
 Restart=on-failure
-RestartSec=600
+RestartSec=1800
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

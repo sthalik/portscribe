@@ -33,6 +33,7 @@ qbt_username = os.environ["qbt_username"]
 qbt_password = os.environ["qbt_password"]
 qbt_host = os.environ["qbt_host"]
 qbt_port = os.environ["qbt_port"]
+qbt_vhost = os.environ["qbt_vhost"]
 
 def get_otp():
     if ws_otp is not None:
@@ -88,23 +89,30 @@ def acquire_lock():
         fd = os.open("lock", os.O_WRONLY | os.O_CREAT, 0o644)
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
+def make_qbt_client(host, port, username, password, vhost):
+    headers = {}
+    if vhost is not None:
+        headers['Host'] = qbt_vhost;
+    return qbittorrentapi.Client(host=qbt_host, port=qbt_port,
+                                 username=qbt_username, password=qbt_password,
+                                 EXTRA_HEADERS=headers)
 
 def test_bt():
-    client = qbittorrentapi.Client(host=qbt_host, port=qbt_port, username=qbt_username, password=qbt_password)
-    client.auth_log_in()
-    if not client.application.preferences:
-        raise Exception("Testing qbittorrent API connection failed!")
-    verbose_print('BT ok')
+    with make_qbt_client(qbt_host, qbt_port, qbt_username, qbt_password, qbt_vhost) as client:
+        client.auth_log_in()
+        if not client.application.preferences:
+            raise Exception("Testing qbittorrent API connection failed!")
+        verbose_print('BT ok')
 
 def nav(url, force=False):
     if force or driver.current_url != url:
         driver.get(url)
 
-def wait_until_not_selector(selector, secs=5):
+def wait_until_not_selector(selector, secs=15):
     return WebDriverWait(driver, secs).until_not(
         EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
 
-def wait_until_selector(selector, secs=5):
+def wait_until_selector(selector, secs=15):
     return WebDriverWait(driver, secs).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
 
@@ -174,12 +182,17 @@ def load_cookies():
 
 def save_cookies():
     filename = "cookies.pkl"
-    with open(f"{filename}~", "wb") as f:
-        pickle.dump(driver.get_cookies(), f)
-        f.flush()
-        os.fsync(f.fileno())
-    time.sleep(3)
-    os.replace(f"{filename}~", filename)
+    dirfd = os.open(".", os.O_DIRECTORY)
+    try:
+        with open(f"{filename}~", "wb") as f:
+            pickle.dump(driver.get_cookies(), f)
+            f.flush()
+            os.fsync(f.fileno())
+        time.sleep(3)
+        os.replace(f"{filename}~", filename)
+        os.fsync(dirfd)
+    finally:
+        os.close(dirfd)
 
 def parse_duration(s: str):
     m = re.match(r"(?:(\d+)\s+days?\s+)?(\d{1,2}):(\d{1,2}):(\d{1,2})", s)
@@ -192,7 +205,7 @@ def parse_duration(s: str):
         verbose_print(f"Couldn't parse remaining duration '{s}'")
         return None
 
-def get_port_reservation():
+def get_reservation():
     nav(URL); wait_until_selector("#portforwardpage")
     try:
         wait_until_selector("#epf-countdown", secs=5)
@@ -215,15 +228,17 @@ def get_port():
     load_cookies()
     maybe_login()
 
+
     if not is_on_port_forward_page():
+        verbose_print("Navigating to port forward page")
         nav(URL); wait_until_selector("#portforwardpage")
 
+    verbose('Login OK!')
     save_cookies()
-    verbose_print('Saved cookies')
-    r, s = get_port_reservation()
-    verbose_print(f"Time remaining {s}")
+    r, s = get_reservation()
 
     if r is None or r < 86400:
+        new = True
         nav(URL); wait_until_selector('#portforwardpage')
 
         verbose_print("Deleting old port")
@@ -234,22 +249,26 @@ def get_port():
         driver.execute_script('staticIPS.postEphPort(true);')
         wait_until_selector('#epf-countdown')
     else:
-        verbose_print("Not replacing the port")
+        new = False
 
-    port = driver.find_element('css selector', '#ports-main-tab .pf-details span.pf-ext')
-    verbose_print(f"Port {port.text}")
-    return int(port.text)
+    port_ = driver.find_element('css selector', '#ports-main-tab .pf-details span.pf-ext')
+    port = int(port_)
+    if new:
+        verbose_print(f"Port set to {port}. See you in a week.")
+    else:
+        verbose_print(f"Time remaining {s} for {port}.")
+    return port
 
 def set_port(new_port):
-    client = qbittorrentapi.Client(host=qbt_host, port=qbt_port, username=qbt_username, password=qbt_password)
-    client.auth_log_in()
-    prefs = client.app.preferences
-    if 'listen_port' not in prefs or prefs['listen_port'] != new_port:
-        verbose_print('Set port')
-        prefs['listen_port'] = new_port
-        client.app.set_preferences(prefs)
-    else:
-        verbose_print('Port already set')
+    with make_qbt_client(qbt_host, qbt_port, qbt_username, qbt_password, qbt_vhost) as client:
+        client.auth_log_in()
+        prefs = client.app.preferences
+        if 'listen_port' not in prefs or prefs['listen_port'] != new_port:
+            verbose_print('Set port')
+            prefs['listen_port'] = new_port
+            client.app.set_preferences(prefs)
+        else:
+            verbose_print('Port already set')
     verbose_print("All done.")
 
 def usage(ret=2):
@@ -269,6 +288,7 @@ def usage(ret=2):
     exit(ret)
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(line_buffering=True)
     optlist, args = getopt.getopt(sys.argv[1:], '+qh', [ 'no-headless', 'help', "quiet" ])
     settings = Settings()
 
@@ -288,8 +308,8 @@ if __name__ == "__main__":
                 usage()
 
     acquire_lock()
-    test_bt()
     driver = make_browser(settings)
+    test_bt()
     try:
         port = get_port()
         set_port(port)
