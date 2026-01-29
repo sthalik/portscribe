@@ -250,7 +250,7 @@ def get_port():
         verbose_print("Navigating to port forward page")
         nav(URL); wait_until_selector("#portforwardpage")
 
-    verbose_print('Login ok')
+    verbose_print('Login OK!')
     save_cookies()
     r, s = get_reservation()
 
