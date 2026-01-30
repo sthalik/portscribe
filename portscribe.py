@@ -7,9 +7,7 @@ import platform
 from pathlib import Path
 import pickle
 import time
-import getopt
 from dataclasses import dataclass
-import pyotp
 
 import qbittorrentapi
 os.environ['QBITTORRENTAPI_DO_NOT_VERIFY_WEBUI_CERTIFICATE'] = "1"
@@ -36,6 +34,7 @@ qbt_port = os.environ["qbt_port"]
 qbt_vhost = os.environ["qbt_vhost"]
 
 def get_otp():
+    import pyotp
     if ws_otp is not None:
         totp = pyotp.TOTP(ws_otp)
         return totp.now()
@@ -148,12 +147,11 @@ def login():
         code.send_keys(otp)
         button.click()
         code.send_keys(Keys.RETURN)
-        verbose_print('Sent form')
     else:
         button = driver.find_element("css selector", '#login_button')
         passwd.send_keys(Keys.RETURN)
-        verbose_print('Sent form')
-    wait_until_selector('#myaccountpage')
+    verbose_print('Sent form')
+    wait_until_selector('#myaccountpage', 10)
     verbose_print('Got to panel')
     wait_until_selector("#menu-ports")
     verbose_print('Switching tab')
@@ -174,25 +172,45 @@ def load_cookies():
         if not driver.current_url.startswith('https://windscribe.com/'):
             nav("https://windscribe.com/")
         verbose_print('Loading cookies')
-        with open("cookies.pkl", "rb") as f:
-            cookies = pickle.load(f)
-        for cookie in cookies:
-            driver.add_cookie(cookie)
+        try:
+            with open("cookies.pkl", "rb") as f:
+                cookies = pickle.load(f)
+                for cookie in cookies:
+                    driver.add_cookie(cookie)
+        except ex:
+            verbose_print(f"Can't load cookies!")
+            #import traceback
+            #print("=== BACKTRACE ===")
+            #traceback.print_exception(type(e), e, e.__traceback__)
+            try:
+                os.remove("cookies.pkl")
+            except:
+                verbose_print(f"Can't remove cookies!")
         nav(URL)
 
+def call_with_dir_sync(fn, dirname):
+    if platform.system() != 'Windows':
+        dirfd = os.open(dirname, os.O_DIRECTORY)
+        try:
+            os.fsync(dirfd)
+            ret = fn()
+            return ret
+        finally:
+            os.close(dirfd)
+    else:
+        return fn()
+
+def save_cookies_():
+    FILENAME = "cookies.pkl"
+    with open(f"{FILENAME}~", "wb") as f:
+        pickle.dump(driver.get_cookies(), f)
+        f.flush()
+        os.fsync(f.fileno())
+    time.sleep(3)
+    os.replace(f"{FILENAME}~", FILENAME)
+
 def save_cookies():
-    filename = "cookies.pkl"
-    dirfd = os.open(".", os.O_DIRECTORY)
-    try:
-        with open(f"{filename}~", "wb") as f:
-            pickle.dump(driver.get_cookies(), f)
-            f.flush()
-            os.fsync(f.fileno())
-        time.sleep(3)
-        os.replace(f"{filename}~", filename)
-        os.fsync(dirfd)
-    finally:
-        os.close(dirfd)
+    call_with_dir_sync(save_cookies_, ".")
 
 def parse_duration(s: str):
     m = re.match(r"(?:(\d+)\s+days?\s+)?(\d{1,2}):(\d{1,2}):(\d{1,2})", s)
@@ -228,12 +246,11 @@ def get_port():
     load_cookies()
     maybe_login()
 
-
     if not is_on_port_forward_page():
         verbose_print("Navigating to port forward page")
         nav(URL); wait_until_selector("#portforwardpage")
 
-    verbose('Login OK!')
+    verbose_print('Login ok')
     save_cookies()
     r, s = get_reservation()
 
@@ -252,7 +269,7 @@ def get_port():
         new = False
 
     port_ = driver.find_element('css selector', '#ports-main-tab .pf-details span.pf-ext')
-    port = int(port_)
+    port = int(port_.text)
     if new:
         verbose_print(f"Port set to {port}. See you in a week.")
     else:
@@ -288,6 +305,7 @@ def usage(ret=2):
     exit(ret)
 
 if __name__ == "__main__":
+    import getopt
     sys.stdout.reconfigure(line_buffering=True)
     optlist, args = getopt.getopt(sys.argv[1:], '+qh', [ 'no-headless', 'help', "quiet" ])
     settings = Settings()
