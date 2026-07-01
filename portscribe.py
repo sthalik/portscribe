@@ -119,31 +119,25 @@ def is_logged_in():
 
 def login():
     nav('https://www.windscribe.com/login');
-    otp = get_otp()
-    if otp is not None:
-        try:
-            driver.find_element("css selector", '.have_2fa').click()
-        except NoSuchElementException as ex:
-            print(driver.page_source)
-            raise ex
-        time.sleep(2)
-    wait_until_selector('.login-box #username')
-    user = driver.find_element("css selector", '.login-box #username')
-    passwd = driver.find_element("css selector", '.login-box #pass')
+    wait_until_selector('[aria-label="Username"]', 10)
+    wait_until_selector('[aria-label="Password"]', 1)
+
+    user = driver.find_element("css selector", '[aria-label="Username"]')
+    passwd = driver.find_element("css selector", '[aria-label="Password"]')
     user.send_keys(ws_username)
     passwd.send_keys(ws_password)
-    if otp is not None:
-        verbose_print('Got OTP key')
-        wait_until_selector('.login-box #code')
-        code = driver.find_element('css selector', '.login-box #code')
-        button = driver.find_element("css selector", '#login_button')
+    passwd.send_keys(Keys.RETURN)
+
+    try:
+        wait_until_selector('[aria-label="Enter 2FA Code"]', 10)
+        code = driver.find_element("css selector", '[aria-label="Enter 2FA Code"]')
+        print('Answering OTP')
         otp = get_otp()
         code.send_keys(otp)
-        button.click()
         code.send_keys(Keys.RETURN)
-    else:
-        button = driver.find_element("css selector", '#login_button')
-        passwd.send_keys(Keys.RETURN)
+    except NoSuchElementException as ex:
+        print('No OTP')
+
     verbose_print('Sent form')
     wait_until_selector('#myaccountpage', 10)
     verbose_print('Got to panel')
