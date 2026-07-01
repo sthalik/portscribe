@@ -53,6 +53,8 @@ def verbose_print(msg):
 
 def make_browser(settings: Settings):
     global driver
+    if driver:
+        return driver
 
     options = Options()
     if settings.headless:
@@ -60,19 +62,11 @@ def make_browser(settings: Settings):
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--start-maximized")
+    options.browser_version = "stable"
 
-    if not driver:
-        try:
-            driver = webdriver.Chrome(options=options)
-        except:
-            verbose_print("Trying to download Chrome")
-            from webdriver_manager.chrome import ChromeDriverManager
-            from selenium.webdriver.chrome.service import Service
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=ChromeDriverManager().install(), options=options)
+    driver = webdriver.Chrome(options=options)
     return driver
 
 def acquire_lock():
