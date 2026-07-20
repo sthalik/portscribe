@@ -7,6 +7,7 @@ import platform
 from pathlib import Path
 import pickle
 import time
+import shutil
 from dataclasses import dataclass
 
 import qbittorrentapi
@@ -16,6 +17,7 @@ import selenium
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -64,9 +66,20 @@ def make_browser(settings: Settings):
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--start-maximized")
-    options.browser_version = "stable"
 
-    driver = webdriver.Chrome(options=options)
+    # Use whatever browser + driver are installed on PATH. In the container
+    # that's the apk chromium / chromium-chromedriver; passing the driver
+    # explicitly skips Selenium Manager, so no download, no gcompat, no DNS.
+    chromium = shutil.which("chromium") or shutil.which("chromium-browser")
+    chromedriver = shutil.which("chromedriver")
+
+    if chromium:
+        options.binary_location = chromium
+    if chromedriver:
+        driver = webdriver.Chrome(service=Service(executable_path=chromedriver), options=options)
+    else:
+        options.browser_version = "stable"
+        driver = webdriver.Chrome(options=options)
     return driver
 
 def acquire_lock():
