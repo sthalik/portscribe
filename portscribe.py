@@ -178,7 +178,7 @@ def load_cookies():
                 cookies = pickle.load(f)
                 for cookie in cookies:
                     driver.add_cookie(cookie)
-        except ex:
+        except Exception as ex:
             verbose_print(f"Can't load cookies!")
             #import traceback
             #print("=== BACKTRACE ===")
